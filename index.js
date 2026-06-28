@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { request, consumeStreamAsync, parseJson, parseXml, prettyResponse } from './util.js';
+import Mustache from 'mustache';
 
 export default class OpenAI extends EventEmitter {
 	constructor({
@@ -14,6 +15,47 @@ export default class OpenAI extends EventEmitter {
 		this.headers = {'Content-Type': 'application/json', ...headers};
 		if (secretKey) this.headers['Authorization'] = `Bearer ${secretKey}`;
 	}
+
+	renderTemplate = (template, data) => {
+		return Mustache.render(template, data);
+	};
+
+	template = async (opts) => {
+		if (!opts || typeof opts !== 'object') throw new Error('Options must be an object');
+		if (typeof opts.template !== 'string') throw new Error('Template must be a string');
+		if (typeof opts.data !== 'object' || opts.data === null) throw new Error('Data must be an object');
+		const {
+			template,
+			data,
+			prefill = '',
+			json,
+			xml,
+			onUpdate,
+			...chatOptions
+		} = opts;
+		if (typeof prefill !== 'string') throw new Error('Prefill must be a string');
+
+		const prompt = this.renderTemplate(template, data);
+		const withPrefill = (content) => {
+			if (!prefill) return content;
+			if ((content || '').trimStart().startsWith(prefill.trim())) return content;
+			return `${prefill}${content || ''}`;
+		};
+		const parseResponse = (content) => {
+			content = withPrefill(content || '');
+			if (json) return parseJson(content);
+			if (xml) return parseXml(content, xml);
+			return content;
+		};
+
+		const response = await this.chat(prompt, {
+			...chatOptions,
+			'onUpdate': onUpdate ? async (message, count) => {
+				await onUpdate(parseResponse(message.content || message.text || ''), count);
+			} : undefined,
+		});
+		return parseResponse(response.content);
+	};
 
 	chat = async (prompt, {
 		imageUrl,

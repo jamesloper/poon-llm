@@ -6,7 +6,7 @@ npm install poon-llm
 ```
 
 ```javascript
-import { OpenAI } from 'poon-llm';
+import { OpenAI } from 'meteor/poon-llm';
 
 const llm = new OpenAI({
   'secretKey': process.env.OPENAI_API_KEY,
