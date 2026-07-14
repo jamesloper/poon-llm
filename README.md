@@ -38,6 +38,19 @@ const second = await llm.chat('Continue', {
 });
 ```
 
+Send a file URL, uploaded file id, or Base64 data URL:
+
+```javascript
+const response = await llm.chat('Extract this invoice.', {
+  'fileUrl': 'https://example.com/invoice.pdf',
+});
+
+const uploaded = await llm.chat('Extract this invoice.', {
+  'filename': 'invoice.pdf',
+  'fileData': `data:application/pdf;base64,${base64Pdf}`,
+});
+```
+
 Automatic tools:
 
 ```javascript
@@ -79,6 +92,11 @@ const response = await llm.chat('What is the weather in Boston?', {
 | `temperature` | Sampling temperature |
 | `topP` | Nucleus sampling parameter |
 | `maxTokens` | Maximum output tokens |
+| `imageUrl` | Image URL to send as an `input_image` |
+| `fileUrl` | File URL to send as an `input_file` |
+| `fileId` | OpenAI file id to send as an `input_file` |
+| `fileData` | Base64 data URL to send as an `input_file` |
+| `filename` | Required filename when using `fileData` |
 | `timeout` | Request timeout in milliseconds |
 | `tools` | Object map of tool definitions and handlers |
 | `onMessage` | Optional per-call listener for `message` events |

@@ -59,6 +59,10 @@ export default class OpenAI extends EventEmitter {
 
 	chat = async (prompt, {
 		imageUrl,
+		fileUrl,
+		fileId,
+		fileData,
+		filename,
 		json,
 		xml,
 		lastMessageId,
@@ -79,6 +83,12 @@ export default class OpenAI extends EventEmitter {
 		if (xml && json) throw new Error('Choose either XML or JSON, not both');
 		if (lastMessageId && typeof lastMessageId !== 'string') throw new Error('lastMessageId must be a string');
 		if (tools && (typeof tools !== 'object' || Array.isArray(tools))) throw new Error('tools must be an object');
+		if (fileUrl && typeof fileUrl !== 'string') throw new Error('fileUrl must be a string');
+		if (fileId && typeof fileId !== 'string') throw new Error('fileId must be a string');
+		if (fileData && typeof fileData !== 'string') throw new Error('fileData must be a string');
+		if (filename && typeof filename !== 'string') throw new Error('filename must be a string');
+		if ([fileUrl, fileId, fileData].filter(Boolean).length > 1) throw new Error('Choose only one file input');
+		if (fileData && !filename) throw new Error('filename is required with fileData');
 
 		const toolDefinitions = [];
 		const toolHandlers = {};
@@ -138,12 +148,15 @@ export default class OpenAI extends EventEmitter {
 			'lastMessageId': lastMessageId || null,
 		};
 
-		let input = !imageUrl ? prompt : [{
+		const inputContent = [{'type': 'input_text', 'text': prompt}];
+		if (imageUrl) inputContent.push({'type': 'input_image', 'image_url': imageUrl});
+		if (fileUrl) inputContent.push({'type': 'input_file', 'file_url': fileUrl});
+		if (fileId) inputContent.push({'type': 'input_file', 'file_id': fileId});
+		if (fileData) inputContent.push({'type': 'input_file', filename, 'file_data': fileData});
+
+		let input = inputContent.length === 1 ? prompt : [{
 			'role': 'user',
-			'content': [
-				{'type': 'input_text', 'text': prompt},
-				{'type': 'input_image', 'image_url': imageUrl},
-			],
+			'content': inputContent,
 		}];
 
 		while (true) {

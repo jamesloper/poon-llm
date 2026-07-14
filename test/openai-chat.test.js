@@ -105,6 +105,104 @@ test('OpenAI chat forwards topP as top_p', async () => {
 	}
 });
 
+test('OpenAI chat sends file inputs', async () => {
+	const requests = [];
+	const server = http.createServer((req, res) => {
+		let body = '';
+		req.on('data', chunk => body += chunk);
+		req.on('end', () => {
+			requests.push(JSON.parse(body));
+			createSseResponse(res, [
+				{'type': 'response.created', 'id': 'resp_1'},
+				{'type': 'response.output_item.added', 'item': {'type': 'message', 'id': 'msg_1', 'role': 'assistant'}},
+				{'type': 'response.output_text.delta', 'item_id': 'msg_1', 'delta': 'ok'},
+				{'type': 'response.completed', 'id': 'resp_1'},
+			]);
+		});
+	});
+	await new Promise(resolve => server.listen(0, resolve));
+	const address = server.address();
+	const llm = new OpenAI({
+		'apiBase': `http://127.0.0.1:${address.port}`,
+		'model': 'gpt-5',
+		'secretKey': 'test-key',
+	});
+
+	try {
+		await llm.chat('read this', {
+			'fileUrl': 'https://example.com/invoice.pdf',
+		});
+		assert.deepEqual(requests[0].input, [{
+			'role': 'user',
+			'content': [
+				{'type': 'input_text', 'text': 'read this'},
+				{'type': 'input_file', 'file_url': 'https://example.com/invoice.pdf'},
+			],
+		}]);
+	} finally {
+		server.close();
+	}
+});
+
+test('OpenAI chat sends base64 file inputs', async () => {
+	const requests = [];
+	const server = http.createServer((req, res) => {
+		let body = '';
+		req.on('data', chunk => body += chunk);
+		req.on('end', () => {
+			requests.push(JSON.parse(body));
+			createSseResponse(res, [
+				{'type': 'response.created', 'id': 'resp_1'},
+				{'type': 'response.output_item.added', 'item': {'type': 'message', 'id': 'msg_1', 'role': 'assistant'}},
+				{'type': 'response.output_text.delta', 'item_id': 'msg_1', 'delta': 'ok'},
+				{'type': 'response.completed', 'id': 'resp_1'},
+			]);
+		});
+	});
+	await new Promise(resolve => server.listen(0, resolve));
+	const address = server.address();
+	const llm = new OpenAI({
+		'apiBase': `http://127.0.0.1:${address.port}`,
+		'model': 'gpt-5',
+		'secretKey': 'test-key',
+	});
+
+	try {
+		await llm.chat('read this', {
+			'filename': 'invoice.pdf',
+			'fileData': 'data:application/pdf;base64,JVBERi0=',
+		});
+		assert.deepEqual(requests[0].input[0].content, [
+			{'type': 'input_text', 'text': 'read this'},
+			{'type': 'input_file', 'filename': 'invoice.pdf', 'file_data': 'data:application/pdf;base64,JVBERi0='},
+		]);
+	} finally {
+		server.close();
+	}
+});
+
+test('OpenAI chat rejects ambiguous file inputs', async () => {
+	const llm = new OpenAI({
+		'apiBase': 'http://127.0.0.1',
+		'model': 'gpt-5',
+		'secretKey': 'test-key',
+	});
+
+	await assert.rejects(
+		() => llm.chat('read this', {
+			'fileUrl': 'https://example.com/invoice.pdf',
+			'fileId': 'file_123',
+		}),
+		/Choose only one file input/,
+	);
+	await assert.rejects(
+		() => llm.chat('read this', {
+			'fileData': 'data:application/pdf;base64,JVBERi0=',
+		}),
+		/filename is required/,
+	);
+});
+
 test('OpenAI chat runs tools automatically and treats tool calls as messages', async () => {
 	const requests = [];
 	const updates = [];
